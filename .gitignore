@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+anaconda_projects/
+.venv/
+.env
+models/*.pkl
+.DS_Store
