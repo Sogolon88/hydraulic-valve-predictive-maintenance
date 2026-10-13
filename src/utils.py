@@ -1,27 +1,11 @@
+from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 
 # Racine du projet, indépendante du dossier d'exécution
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-
-def centrer_reduire(x_train: pd.DataFrame, x_test: pd.DataFrame | None = None):
-    """Standardise les features : fit sur le train, transform sur le train et le test."""
-    scaler = StandardScaler()
-
-    x_train_s = pd.DataFrame(
-        scaler.fit_transform(x_train), columns=x_train.columns, index=x_train.index
-    )
-    if x_test is None:
-        return x_train_s, scaler
-
-    x_test_s = pd.DataFrame(
-        scaler.transform(x_test), columns=x_test.columns, index=x_test.index
-    )
-    return x_train_s, x_test_s, scaler
 
 
 def save_figure(name: str, dpi: int = 150) -> Path:
@@ -34,22 +18,20 @@ def save_figure(name: str, dpi: int = 150) -> Path:
     plt.savefig(path, dpi=dpi)
     return path
 
-
-def save_models(models: dict) -> None:
-    """Enregistre chaque modèle (pipeline complet) dans models/<nom>.pkl."""
+def save_models(models: dict, name_folder) -> None:
+    """Enregistre chaque modèle (pipeline complet) dans models/<name_folder>/<nom>.pkl."""
     import joblib
 
-    folder = PROJECT_ROOT / "models"
-    folder.mkdir(exist_ok=True)
+    folder = PROJECT_ROOT / "models" / name_folder
+    folder.mkdir(parents=True, exist_ok=True)
     for name, model in models.items():
         joblib.dump(model, folder / f"{name}.pkl")
 
-
-def load_model(name: str):
+def load_model(name: str, name_folder):
     """Recharge un modèle enregistré depuis models/<nom>.pkl."""
     import joblib
 
-    return joblib.load(PROJECT_ROOT / "models" / f"{name}.pkl")
+    return joblib.load(PROJECT_ROOT / "models" / name_folder/ f"{name}.pkl")
 
 
 def split_data(x: pd.DataFrame, y: pd.Series, test_size: float = 0.15,
@@ -302,3 +284,36 @@ def plot_boxplots(X: pd.DataFrame, save_as: str | None = None, figsize=(18, 6)):
     """Boîte à moustaches de chaque feature."""
     X.boxplot(figsize=figsize, rot=90)
     _finish(save_as)
+
+
+@lru_cache(maxsize=None)
+def _histogram_edges(bins: int):
+    """Bornes des histogrammes (PS2, FS1) : min/max de tout le jeu brut, comme à l'entraînement."""
+    return tuple(
+        np.linspace(d.values.min(), d.values.max(), bins + 1)
+        for d in (load_data("data/raw/PS2.txt"), load_data("data/raw/FS1.txt"))
+    )
+
+
+def _cycle_features(ps2: pd.DataFrame, fs1: pd.DataFrame, bins: int = 20) -> pd.DataFrame:
+    """Features histogramme d'UN cycle, avec les mêmes colonnes que celles gardées à l'entraînement."""
+    if len(ps2) != 1 or len(fs1) != 1:
+        raise ValueError("ps2 et fs1 doivent contenir un seul cycle (une ligne)")
+
+    # valeurs manquantes -> moyenne du cycle
+    ps2 = ps2.fillna(ps2.mean(axis=1).iloc[0])
+    fs1 = fs1.fillna(fs1.mean(axis=1).iloc[0])
+
+    edges_ps2, edges_fs1 = _histogram_edges(bins)
+    X = pd.concat([build_histogramme(ps2, edges=edges_ps2, prefix="ps2_"),
+                   build_histogramme(fs1, edges=edges_fs1, prefix="fs1_")], axis=1)
+
+    kept = pd.read_csv(PROJECT_ROOT / "data/processed/histogramme/x_train.csv", nrows=0).columns
+    return X[kept]
+
+
+def pipeline(ps2: pd.DataFrame, fs1: pd.DataFrame, model: str = "random_forest") -> int:
+    """Prédit l'état de la vanne pour un cycle : 1 = optimale, 0 = sinon.
+    ps2, fs1 : DataFrames d'une ligne. Valeurs manquantes remplacées par la moyenne du cycle."""
+    X = _cycle_features(ps2, fs1)
+    return int(load_model(model, "histogramme").predict(X)[0])
