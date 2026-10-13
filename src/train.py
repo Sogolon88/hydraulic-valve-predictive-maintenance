@@ -2,8 +2,7 @@ import time
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import (GridSearchCV, RandomizedSearchCV,
-                                     StratifiedKFold, cross_val_score)
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, StratifiedKFold
 
 from src.evaluation import test_scores
 from src.model import get_baseline_models, get_param_grids
@@ -14,29 +13,6 @@ def _make_cv(cv, random_state: int = 42):
     if isinstance(cv, int):
         return StratifiedKFold(n_splits=cv, shuffle=True, random_state=random_state)
     return cv
-
-
-def train_baselines(x_train, y_train, x_test, y_test, models: dict | None = None,
-                    cv: int = 5, random_state: int = 42):
-    """Entraîne et compare plusieurs modèles. Retourne (tableau de résultats, modèles entraînés)."""
-    y_train, y_test = np.ravel(y_train), np.ravel(y_test)
-    models = models or get_baseline_models(random_state)
-    splitter = _make_cv(cv, random_state)
-
-    rows, fitted = [], {}
-    for name, model in models.items():
-        cv_f1 = cross_val_score(model, x_train, y_train, cv=splitter, scoring="f1_macro").mean()
-
-        start = time.perf_counter()
-        model.fit(x_train, y_train)
-        fit_time = time.perf_counter() - start
-
-        rows.append({"model": name, "cv_f1_macro": cv_f1,
-                     **test_scores(model, x_test, y_test), "fit_time_s": fit_time})
-        fitted[name] = model
-
-    results = pd.DataFrame(rows).set_index("model").sort_values("f1_macro", ascending=False)
-    return results, fitted
 
 
 # -------hyperparamètres

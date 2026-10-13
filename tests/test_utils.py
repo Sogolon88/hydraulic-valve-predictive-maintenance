@@ -14,10 +14,10 @@ def test_save_and_load_model(tmp_path, monkeypatch):
     x, y = make_classification(100, 4, random_state=0)
     model = get_baseline_models()["knn"].fit(x, y)
 
-    utils.save_models({"knn": model})
+    utils.save_models({"knn": model}, "stats")
 
-    assert (tmp_path / "models" / "knn.pkl").exists()           # fichier créé
-    loaded = utils.load_model("knn")
+    assert (tmp_path / "models" / "stats" / "knn.pkl").exists()           # fichier créé
+    loaded = utils.load_model("knn", "stats")
     assert np.array_equal(loaded.predict(x), model.predict(x))
 
 
@@ -51,4 +51,34 @@ def test_build_histogramme():
     assert features.index.tolist() == data.index.tolist() # index conservé
     assert np.allclose(features.sum(axis=1), 1)           # proportions : somme = 1
     assert list(features.columns)[0] == "ps2_bin_0"
+
+
+def test_pipeline_reproduit_les_features_d_entrainement():
+    dossier = utils.PROJECT_ROOT / "data/processed/histogramme"
+    if not (dossier / "x_train.csv").exists():
+        pytest.skip("jeu histogramme absent")
+
+    PS2, FS1 = utils.load_data("data/raw/PS2.txt"), utils.load_data("data/raw/FS1.txt")
+    train = pd.concat([pd.read_csv(dossier / "x_train.csv"), pd.read_csv(dossier / "x_test.csv")])
+
+    for i in range(5):
+        feats = utils._cycle_features(PS2.iloc[[i]], FS1.iloc[[i]])
+        ecart = np.abs(train.values - feats.values).max(axis=1)
+        assert (ecart < 1e-9).any()            # ce cycle existe dans le jeu d'entraînement ou de test
+
+
+def test_pipeline_valeurs_manquantes_et_prediction():
+    if not (utils.PROJECT_ROOT / "models/histogramme/random_forest.pkl").exists():
+        pytest.skip("modèle absent")
+
+    PS2, FS1 = utils.load_data("data/raw/PS2.txt"), utils.load_data("data/raw/FS1.txt")
+    ps2, fs1 = PS2.iloc[[0]].copy(), FS1.iloc[[0]].copy()
+    ps2.iloc[0, :50] = np.nan                                           # 50 valeurs manquantes
+
+    attendu = utils._cycle_features(ps2.fillna(ps2.mean(axis=1).iloc[0]), fs1)
+    assert utils._cycle_features(ps2, fs1).equals(attendu)              # remplacées par la moyenne du cycle
+    assert utils.pipeline(ps2, fs1) in (0, 1)
+
+    with pytest.raises(ValueError):
+        utils.pipeline(PS2.iloc[:2], FS1.iloc[:2])                      # un seul cycle attendu
 
