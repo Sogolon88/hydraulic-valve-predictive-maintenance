@@ -144,7 +144,20 @@ def build_frequence(data: pd.DataFrame, fs: float, prefix: str = "") -> pd.DataF
         "energie": (fft ** 2).sum(axis=1),
         "centroide": (fft * freqs).sum(axis=1) / fft.sum(axis=1),
     }, index=data.index)
-    
+
+    return features.add_prefix(prefix)
+
+
+def build_histogramme(data: pd.DataFrame, bins: int = 20, edges=None, prefix: str = "") -> pd.DataFrame:
+    """Chaque cycle (ligne) devient un histogramme : proportion de mesures dans chaque intervalle.
+    Les intervalles sont communs à tous les cycles (min -> max de data, sans utiliser y)."""
+    if edges is None:
+        edges = np.linspace(data.values.min(), data.values.max(), bins + 1)
+
+    counts = np.array([np.histogram(row, bins=edges)[0] for row in data.values])
+    features = pd.DataFrame(counts / data.shape[1],
+                            columns=[f"bin_{i}" for i in range(len(edges) - 1)],
+                            index=data.index)
     return features.add_prefix(prefix)
 
 

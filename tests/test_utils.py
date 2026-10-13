@@ -40,3 +40,15 @@ def test_split_data_longueurs_differentes():
 def test_make_binary_target():
     y = utils.make_binary_target(pd.Series([100, 90, 73, 100]), 100)
     assert y.tolist() == [1, 0, 0, 1]
+
+
+def test_build_histogramme():
+    data = pd.DataFrame(np.random.default_rng(0).normal(size=(5, 200)), index=[10, 11, 12, 13, 14])
+
+    features = utils.build_histogramme(data, bins=10, prefix="ps2_")
+
+    assert features.shape == (5, 10)                      # 10 intervalles par cycle
+    assert features.index.tolist() == data.index.tolist() # index conservé
+    assert np.allclose(features.sum(axis=1), 1)           # proportions : somme = 1
+    assert list(features.columns)[0] == "ps2_bin_0"
+
