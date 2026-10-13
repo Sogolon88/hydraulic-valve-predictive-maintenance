@@ -1,0 +1,15 @@
+# Indique à pip quel outil utiliser pour installer le projet : 
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+# On dit explicitement que le code à rendre importable est le dossier src.
+# Sans cette ligne, setuptools ne sait pas quel dossier prendre et refuse d'installer.
+[tool.setuptools]
+packages = ["src"]
+
+# Fiche d'identité du projet : un nom et une version sont obligatoires
+[project]
+name = "hydraulic-valve-predictive-maintenance"
+version = "0.1.0"
+requires-python = ">=3.10"

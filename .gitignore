@@ -7,3 +7,4 @@ anaconda_projects/
 models/*.pkl
 .DS_Store
 .claude
+*.egg-info/
