@@ -6,3 +6,4 @@ anaconda_projects/
 .env
 models/*.pkl
 .DS_Store
+.claude
