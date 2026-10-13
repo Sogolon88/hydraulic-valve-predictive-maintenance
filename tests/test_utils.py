@@ -37,6 +37,42 @@ def test_split_data_longueurs_differentes():
         utils.split_data(pd.DataFrame({"a": range(10)}), pd.Series(range(9)))
 
 
+def test_split_first_n():
+    x = pd.DataFrame({"a": range(10)})
+    y = pd.Series(range(10))
+
+    x_train, x_test, y_train, y_test = utils.split_first_n(x, y, n_train=7)
+
+    assert x_train["a"].tolist() == list(range(7))        # les 7 premiers, dans l'ordre
+    assert y_test.tolist() == [7, 8, 9]                   # les suivants pour le test
+
+    with pytest.raises(ValueError):
+        utils.split_first_n(x, y, n_train=10)             # test vide
+
+
+def test_build_feature_set():
+    rng = np.random.default_rng(0)
+    ps2 = pd.DataFrame(rng.normal(150, 5, size=(6, 600)))
+    fs1 = pd.DataFrame(rng.normal(8, 1, size=(6, 60)))
+
+    for name in utils.FEATURE_SETS:
+        X = utils.build_feature_set(name, ps2, fs1, n_fit=4)
+        assert len(X) == 6 and not X.isna().any().any()
+
+    with pytest.raises(ValueError):
+        utils.build_feature_set("inconnu", ps2, fs1)
+
+
+def test_select_features_decide_sur_le_train():
+    x_train = pd.DataFrame({"a": [1.0, 2, 3, 4], "b": [2.0, 4, 6, 8], "c": [5.0, 5, 5, 5]})
+    x_test = pd.DataFrame({"a": [9.0], "b": [0.0], "c": [7.0]})
+
+    x_train_s, x_test_s, dropped = utils.select_features(x_train, x_test)
+
+    assert sorted(dropped) == ["b", "c"]                  # c constante, b copie de a
+    assert list(x_test_s.columns) == list(x_train_s.columns) == ["a"]
+
+
 def test_make_binary_target():
     y = utils.make_binary_target(pd.Series([100, 90, 73, 100]), 100)
     assert y.tolist() == [1, 0, 0, 1]

@@ -51,6 +51,18 @@ def split_data(x: pd.DataFrame, y: pd.Series, test_size: float = 0.15,
     )
 
 
+def split_first_n(x: pd.DataFrame, y: pd.Series, n_train: int = 2000):
+    """Découpage imposé par l'énoncé : les n_train premiers cycles pour construire le modèle,
+    les suivants pour le test final. Pas de mélange, l'ordre des cycles est conservé.
+    Retourne x_train, x_test, y_train, y_test."""
+    if len(x) != len(y):
+        raise ValueError(f"x ({len(x)}) et y ({len(y)}) n'ont pas la même longueur")
+    if not 0 < n_train < len(x):
+        raise ValueError(f"n_train doit être entre 1 et {len(x) - 1}")
+
+    return x.iloc[:n_train], x.iloc[n_train:], y.iloc[:n_train], y.iloc[n_train:]
+
+
 def class_distribution(y: pd.Series) -> pd.DataFrame:
     """Effectif et pourcentage de chaque classe."""
     counts = y.value_counts().sort_index()
@@ -178,6 +190,44 @@ def count_outliers_iqr(X: pd.DataFrame, k: float = 1.5) -> pd.DataFrame:
         pd.DataFrame({"n_outliers": n, "%": (100 * n / len(X)).round(1)})
         .sort_values("n_outliers", ascending=False)
     )
+
+
+FEATURE_SETS = ["stats", "spectre", "stats_spectre", "histogramme"]
+
+
+def build_feature_set(name: str, ps2: pd.DataFrame, fs1: pd.DataFrame,
+                      n_fit: int | None = None, bins: int = 20) -> pd.DataFrame:
+    """Features brutes (avant sélection) d'une des méthodes de FEATURE_SETS,
+    construites comme dans les notebooks d'exploration.
+    n_fit : seuls les n_fit premiers cycles servent à fixer les bornes des histogrammes
+    (None = tous les cycles)."""
+    if name == "stats":
+        X = build_features({"ps2": ps2, "fs1": fs1})
+        X["qmm"] = X["ps2_mean"] / X["fs1_mean"]
+        return X
+    if name == "spectre":
+        return pd.concat([build_frequence(ps2, fs=100, prefix="ps2_"),
+                          build_frequence(fs1, fs=10, prefix="fs1_")], axis=1)
+    if name == "stats_spectre":
+        return pd.concat([build_features({"ps2": ps2, "fs1": fs1}),
+                          build_frequence(ps2, fs=100, prefix="ps2_"),
+                          build_frequence(fs1, fs=10, prefix="fs1_")], axis=1)
+    if name == "histogramme":
+        def edges(df):
+            ref = df.values[:n_fit]
+            return np.linspace(ref.min(), ref.max(), bins + 1)
+        return pd.concat([build_histogramme(ps2, edges=edges(ps2), prefix="ps2_"),
+                          build_histogramme(fs1, edges=edges(fs1), prefix="fs1_")], axis=1)
+    raise ValueError(f"Méthode inconnue : {name}. Choix : {FEATURE_SETS}")
+
+
+def select_features(x_train: pd.DataFrame, x_test: pd.DataFrame,
+                    constant_threshold: float = 1e-3, corr_threshold: float = 0.85):
+    """Sélection des features décidée sur le train seulement, puis appliquée au test.
+    Retourne (x_train, x_test, liste des colonnes supprimées)."""
+    x_train, constant = drop_constant_features(x_train, constant_threshold)
+    x_train, correlated = drop_correlated_features(x_train, corr_threshold)
+    return x_train, x_test[x_train.columns], constant + correlated
 
 import pandas as pd
 from pathlib import Path

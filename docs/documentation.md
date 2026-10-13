@@ -33,9 +33,12 @@ Les classes sont équilibrées : environ 51 % de cycles avec la vanne à 100 %, 
 ## 3. Organisation du dossier
 
 ```
+notebook_projet.ipynb  notebook final : tout le projet, du problème au modèle retenu
 data/raw/          fichiers bruts
 data/processed/    jeux train et test déjà préparés, un sous dossier par méthode
-notebooks/         les notebooks Jupyter
+                   (<nom>/ : découpage aléatoire, <nom>_enonce/ : découpage de l'énoncé)
+notebooks/         les notebooks de travail (exploration, modèles, ensembles, découpage)
+models/            modèles entraînés, un sous dossier par jeu de features
 src/utils.py       chargement, création des features, sélection, découpage, graphiques
 src/model.py       liste des modèles et grilles d'hyperparamètres
 src/train.py       entraînement, validation croisée, recherche d'hyperparamètres
@@ -47,7 +50,7 @@ docs/              énoncé et cette documentation
 
 ## 4. Le problème de départ : trop de colonnes
 
-Un cycle contient 6600 valeurs brutes. On ne les donne pas directement au modèle. On résume chaque cycle par quelques nombres, appelés features. Trois façons de résumer ont été testées, chacune dans son notebook.
+Un cycle contient 6600 valeurs brutes. On ne les donne pas directement au modèle. On résume chaque cycle par quelques nombres, appelés features. Quatre façons de résumer ont été testées.
 
 ### Méthode 1 : statistiques (notebook `exploration.ipynb`)
 
@@ -67,7 +70,13 @@ On découpe la plage de valeurs de chaque capteur en 20 intervalles. Pour chaque
 
 Résultat enregistré dans `data/processed/histogramme/`.
 
-Le dossier `data/processed/spectre/` existe aussi, mais aucun notebook actuel ne le produit.
+### Méthode 4 : fréquences seules
+
+Seulement les 4 valeurs de la transformée de Fourier, pour chaque capteur. Aucun notebook d'exploration ne la produit aujourd'hui, mais `build_feature_set("spectre", ...)` la reconstruit.
+
+Résultat enregistré dans `data/processed/spectre/`.
+
+La fonction `build_feature_set(nom, PS2, FS1)` de `src/utils.py` construit les features brutes de n'importe laquelle des 4 méthodes, exactement comme les notebooks d'exploration. La liste des noms est dans `FEATURE_SETS`.
 
 ## 5. Les étapes communes aux trois notebooks d'exploration
 
@@ -88,13 +97,43 @@ Le dossier `data/processed/spectre/` existe aussi, mais aucun notebook actuel ne
    - garde la meilleure combinaison, réentraîne le modèle sur tout le train,
    - l'évalue une seule fois sur le test.
 3. Afficher les matrices de confusion et les courbes ROC.
-4. Enregistrer les modèles dans `models/` avec `save_models`.
+4. Enregistrer les modèles avec `save_models(modeles, "stats")`, dans `models/stats/`. On les recharge avec `load_model("svm", "stats")`.
 
 Les modèles sensibles à l'échelle des valeurs (k plus proches voisins, régression logistique, SVM) sont placés dans un pipeline avec un `StandardScaler`. Le scaler apprend la moyenne et l'écart type sur le train seulement, ce qui évite de faire fuiter des informations du test.
 
 Métriques calculées sur le test : accuracy, accuracy équilibrée, précision, rappel, F1 (moyennes macro), AUC.
 
-## 7. Comment réutiliser un jeu préparé dans un nouveau notebook
+## 7. Ensemble learning (notebook `ensemble_learning.ipynb`)
+
+Un modèle d'ensemble combine plusieurs modèles pour prendre une seule décision. `get_ensemble_models()` dans `src/model.py` en fournit 7, en trois familles :
+
+| Famille | Modèles | Principe |
+|---|---|---|
+| Bagging | `bagging`, `random_forest`, `extra_trees` | beaucoup d'arbres entraînés chacun sur un tirage du train, puis vote |
+| Boosting | `adaboost`, `gradient_boosting` | des modèles simples ajoutés un par un, chacun corrige les erreurs des précédents |
+| Combinaison | `vote_soft`, `stacking` | régression logistique, k plus proches voisins, SVM et forêt aléatoire décident ensemble |
+
+`compare_models(modeles, x_train, y_train, x_test, y_test)` dans `src/train.py` compare des modèles sans recherche d'hyperparamètres. Pour chacun, il donne le score sur le train, le score en validation croisée et les scores sur le test. Un grand écart entre le score sur le train et celui de la validation croisée signale un surapprentissage.
+
+`tune_model` accepte aussi `gradient_boosting` et `adaboost`, qui ont leur grille dans `get_param_grids()`.
+
+## 8. Découpage de l'énoncé (notebook `decoupage_enonce.ipynb`)
+
+L'énoncé impose : les 2000 premiers cycles pour construire le modèle, les 205 derniers pour le test final. Ce notebook reconstruit les 4 jeux de features de cette façon et les enregistre dans `data/processed/<nom>_enonce/`.
+
+Trois fonctions de `src/utils.py` servent à ça :
+
+1. `build_feature_set(nom, PS2, FS1, n_fit=2000)` : les bornes des histogrammes sont fixées sur les 2000 premiers cycles seulement.
+2. `split_first_n(X, y, n_train=2000)` : découpage sans mélange, dans l'ordre des cycles.
+3. `select_features(x_train, x_test)` : colonnes constantes et corrélées choisies sur le train seulement, puis mêmes colonnes gardées dans le test.
+
+Point important : les 205 derniers cycles ne ressemblent pas aux 2000 premiers. Dans le test, la vanne est optimale dans 36 % des cycles (contre 53 % dans le train), le refroidisseur est toujours à 100 % et l'accumulateur ne prend que 2 valeurs sur 4. Le test est donc plus difficile qu'un découpage aléatoire, et les scores y sont un peu plus bas.
+
+## 9. Le notebook final (`notebook_projet.ipynb`, à la racine)
+
+Il reprend tout le projet dans l'ordre, avec le découpage de l'énoncé : le problème, les données, le découpage, la construction et la sélection des features, les valeurs aberrantes, le choix des modèles, l'optimisation des hyperparamètres, l'ensemble learning, l'évaluation finale sur les 205 cycles et l'interprétation du modèle retenu. Il se suffit à lui même : il repart des fichiers bruts.
+
+## 10. Comment réutiliser un jeu préparé dans un nouveau notebook
 
 ```python
 from src.utils import load_processed
@@ -102,13 +141,15 @@ from src.utils import load_processed
 x_train, x_test, y_train, y_test = load_processed("histogramme")
 ```
 
-Les noms possibles sont `stats`, `stats_spectre`, `histogramme` et `spectre`. `y_train` et `y_test` sont renvoyés sous forme de Series, prêts à être donnés à `fit`.
+Les noms possibles sont `stats`, `stats_spectre`, `histogramme` et `spectre` (découpage aléatoire), ou les mêmes suivis de `_enonce` (découpage de l'énoncé). `y_train` et `y_test` sont renvoyés sous forme de Series, prêts à être donnés à `fit`.
 
-Pour que `from src... import ...` fonctionne, le notebook doit être lancé avec la racine du projet dans le chemin Python.
+Pour que `from src... import ...` fonctionne, le projet doit être installé une fois dans l'environnement du notebook :
 
-## 8. Points à corriger ou à discuter en équipe
+```bash
+.venv/Scripts/python.exe -m pip install -e .
+```
 
-1. Découpage imposé par l'énoncé. L'énoncé demande d'utiliser les 2000 premiers cycles pour construire le modèle et les 205 derniers comme test final. Les notebooks font aujourd'hui un découpage aléatoire 80 / 20. Il faudra soit remplacer ce découpage, soit garder les 205 derniers cycles à part pour une évaluation finale.
-2. Sélection des features avant le découpage. Les colonnes constantes et corrélées sont retirées en regardant toutes les données, test compris. L'effet est faible car `y` n'est pas utilisé, mais l'idéal est de le faire sur le train seulement.
-3. Taille du test. Le README et la valeur par défaut de `split_data` parlent de 15 %, les notebooks utilisent 20 %.
-4. Installation. Le README demande `pip install -e .`, mais le dépôt ne contient ni `pyproject.toml` ni `setup.py`, donc cette commande échoue.
+## 11. Points à discuter en équipe
+
+1. Découpage. Les notebooks d'exploration et `model_training.ipynb` utilisent encore le découpage aléatoire 80 / 20. Le découpage de l'énoncé est appliqué dans `decoupage_enonce.ipynb` et `notebook_projet.ipynb`. Les modèles enregistrés dans `models/` viennent du découpage aléatoire.
+2. Taille du test aléatoire. Le README et la valeur par défaut de `split_data` parlent de 15 %, les notebooks utilisent 20 %.

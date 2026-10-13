@@ -1,5 +1,7 @@
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import (AdaBoostClassifier, BaggingClassifier, ExtraTreesClassifier,
+                              HistGradientBoostingClassifier, RandomForestClassifier,
+                              StackingClassifier, VotingClassifier)
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -32,8 +34,43 @@ def get_baseline_models(random_state: int = 42, class_weight: str | None = "bala
     }
 
 
+def _members(random_state: int, class_weight: str | None) -> list:
+    """Modèles de base variés (linéaire, distance, marge, arbres) combinés par le vote et le stacking.
+    SVC avec probability=True pour que le vote 'soft' puisse moyenner des probabilités."""
+    base = get_baseline_models(random_state, class_weight)
+    svm = _pipe(SVC(class_weight=class_weight, probability=True, random_state=random_state),
+                scale=True)
+    return [("logistic_regression", base["logistic_regression"]), ("knn", base["knn"]),
+            ("svm", svm), ("random_forest", base["random_forest"])]
+
+
+def get_ensemble_models(random_state: int = 42, class_weight: str | None = "balanced") -> dict:
+    """Modèles d'ensemble, en trois familles :
+    - bagging : beaucoup d'arbres entraînés indépendamment sur des tirages du train, puis vote ;
+    - boosting : des modèles simples ajoutés un par un, chacun corrigeant les erreurs des précédents ;
+    - vote et stacking : combinaison de modèles de natures différentes.
+    Pas de n_jobs sur bagging, vote et stacking : ils paralléliseraient avec des processus,
+    très lents à démarrer sous Windows. Les forêts gardent n_jobs=-1 (threads)."""
+    tree = DecisionTreeClassifier(random_state=random_state, class_weight=class_weight)
+    return {
+        "bagging": _pipe(BaggingClassifier(tree, n_estimators=200, random_state=random_state),
+                         scale=False),
+        "random_forest": get_baseline_models(random_state, class_weight)["random_forest"],
+        "extra_trees": _pipe(ExtraTreesClassifier(n_estimators=300, random_state=random_state,
+                                                  n_jobs=-1, class_weight=class_weight), scale=False),
+        "adaboost": _pipe(AdaBoostClassifier(n_estimators=200, random_state=random_state),
+                          scale=False),
+        "gradient_boosting": _pipe(HistGradientBoostingClassifier(random_state=random_state,
+                                                                  class_weight=class_weight),
+                                   scale=False),
+        "vote_soft": VotingClassifier(_members(random_state, class_weight), voting="soft"),
+        "stacking": StackingClassifier(_members(random_state, class_weight),
+                                       final_estimator=LogisticRegression(max_iter=2000), cv=5),
+    }
+
+
 def get_param_grids() -> dict:
-    """Grilles d'hyperparamètres par défaut pour chaque modèle de base."""
+    """Grilles d'hyperparamètres par défaut des modèles de base et des modèles de boosting."""
     return {
         "knn": {
             "clf__n_neighbors": [3, 5, 7, 9, 11, 15],
@@ -61,5 +98,14 @@ def get_param_grids() -> dict:
             "clf__max_depth": [None, 8, 16],
             "clf__min_samples_leaf": [1, 2, 4],
             "clf__max_features": ["sqrt", 0.5],
+        },
+        "gradient_boosting": {
+            "clf__learning_rate": [0.03, 0.1, 0.3],
+            "clf__max_depth": [None, 3, 6],
+            "clf__max_iter": [100, 300],
+        },
+        "adaboost": {
+            "clf__n_estimators": [50, 200, 500],
+            "clf__learning_rate": [0.1, 0.5, 1.0],
         },
     }
