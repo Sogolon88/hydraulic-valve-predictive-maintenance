@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maintenance prédictive d'une vanne hydraulique</title>
+<style>
+    :root {
+        --papier: #f3efe6;
+        --papier-clair: #fbf9f4;
+        --encre: #1f1d1a;
+        --encre-douce: #635d54;
+        --trait: #1a1304;
+        --accent: #165e4f;
+        --accent-voile: #e1ebe6;
+        --alerte: #b4532a;
+        --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+        --sans: "Segoe UI", "Helvetica Neue", Roboto, system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+
+    body {
+        font-family: var(--sans);
+        color: var(--encre);
+        background:
+            radial-gradient(circle at 12% 0%, rgb(255 255 255 / 0.75), transparent 45%),
+            radial-gradient(circle at 100% 100%, rgb(22 94 79 / 0.09), transparent 42%),
+            var(--papier);
+    }
+
+    body.inactif { cursor: none; }
+
+    .diapo {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 5vh 6vw;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.5s ease, visibility 0.5s;
+    }
+
+    .diapo.active { opacity: 1; visibility: visible; }
+
+    .diapo .r { opacity: 0; transform: translateY(18px); }
+
+    .diapo.active .r {
+        animation: entree 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+        animation-delay: calc(var(--i, 0) * 0.16s + 0.15s);
+    }
+
+    @keyframes entree { to { opacity: 1; transform: none; } }
+
+    .surtitre {
+        margin: 0;
+        font-size: clamp(0.75rem, 1.2vw, 1rem);
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--encre-douce);
+    }
+
+    h1, h2, h3, .numero, .auteurs { font-family: var(--serif); font-weight: 600; }
+
+    .contenu { width: min(1250px, 100%); }
+
+    .contenu h2 {
+        margin: 0.6vh 0 3vh;
+        font-size: clamp(1.7rem, 3.3vw, 3rem);
+        line-height: 1.1;
+    }
+
+    /* Titre et fin */
+    .titre { width: min(1100px, 100%); }
+
+    .titre h1 {
+        margin: 1.5vh 0 2vh;
+        font-size: clamp(2.8rem, 7.5vw, 6.5rem);
+        line-height: 0.98;
+        letter-spacing: -0.02em;
+    }
+
+    .accroche {
+        margin: 0;
+        max-width: 42ch;
+        font-size: clamp(1.1rem, 2vw, 1.7rem);
+        color: var(--encre-douce);
+    }
+
+    .filet { height: 3px; margin: 4vh 0 2.5vh; background: var(--accent); transform-origin: left; }
+    .diapo.active .filet { animation: trace 1s 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    @keyframes trace { from { transform: scaleX(0); } }
+
+    .auteurs { margin: 0; font-size: clamp(1.1rem, 2.2vw, 1.8rem); font-style: italic; }
+
+    .fin { text-align: center; }
+    .fin h2 { margin: 1.5vh 0 3vh; font-size: clamp(3.5rem, 10vw, 8rem); line-height: 0.95; }
+    .fin .filet { width: 160px; margin: 0 auto 3vh; }
+
+    /* Mise en page */
+    .deux {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 3vw;
+        align-items: center;
+    }
+
+    .deux.large-gauche { grid-template-columns: 1.15fr 1fr; }
+
+    .texte { font-size: clamp(1rem, 1.7vw, 1.45rem); color: var(--encre-douce); line-height: 1.45; }
+    .texte p { margin: 0 0 1.6vh; }
+    .texte strong { color: var(--encre); }
+
+    .figure { margin: 0; text-align: center; }
+
+    .figure img {
+        max-width: 100%;
+        max-height: 62vh;
+        border: 1px solid var(--trait);
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 18px 40px -28px rgb(31 29 26 / 0.5);
+    }
+
+    .figure.large img { max-height: 52vh; }
+    .figure.bande img { max-height: 30vh; }
+
+    .figure figcaption {
+        margin-top: 1vh;
+        font-size: clamp(0.8rem, 1.1vw, 0.95rem);
+        color: var(--encre-douce);
+    }
+
+    .grille {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 2vh 1.4vw;
+    }
+
+    .carte {
+        padding: 2.2vh 1.3vw;
+        border: 1px solid var(--trait);
+        border-left: 4px solid var(--accent);
+        border-radius: 14px;
+        background: var(--papier-clair);
+        box-shadow: 0 18px 40px -28px rgb(31 29 26 / 0.5);
+    }
+
+    .carte.meilleure { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .carte.meilleure p, .carte.meilleure .chiffre { color: rgb(255 255 255 / 0.85); }
+    .carte.risque { border-left-color: var(--alerte); }
+
+    .carte h3 { margin: 0 0 0.8vh; font-size: clamp(1.15rem, 1.9vw, 1.6rem); }
+    .carte p { margin: 0; font-size: clamp(0.85rem, 1.3vw, 1.1rem); color: var(--encre-douce); line-height: 1.4; }
+    .carte .chiffre { display: block; margin-top: 1vh; font-family: var(--serif); font-size: clamp(1rem, 1.6vw, 1.4rem); color: var(--accent); }
+
+    .grand-chiffre {
+        font-family: var(--serif);
+        font-size: clamp(3rem, 8vw, 6.5rem);
+        line-height: 1;
+        color: var(--accent);
+    }
+
+    code {
+        font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+        font-size: 0.88em;
+        padding: 0.1em 0.4em;
+        border-radius: 6px;
+        background: var(--accent-voile);
+        color: var(--accent);
+    }
+
+    .carte.meilleure code { background: rgb(255 255 255 / 0.18); color: #fff; }
+
+    /* Tableaux */
+    table { width: 100%; border-collapse: collapse; font-size: clamp(0.85rem, 1.3vw, 1.1rem); }
+    th, td { padding: 1.2vh 0.8vw; text-align: center; border-bottom: 1px solid var(--trait); }
+    th { font-weight: 600; color: var(--encre-douce); }
+    th:first-child, td:first-child { text-align: left; }
+    td.meilleur { font-weight: 700; outline: 2px solid var(--accent); outline-offset: -2px; }
+    td.nom { font-family: var(--serif); font-weight: 600; }
+    .note { margin: 2vh 0 0; font-size: clamp(0.85rem, 1.2vw, 1rem); color: var(--encre-douce); }
+
+    /* Flux horizontal */
+    .flux { display: grid; grid-template-columns: 1fr 40px 1fr 40px 1fr 40px 1fr; align-items: center; }
+    .flux .liaison { height: 3px; background: var(--accent); }
+    .flux .carte { text-align: center; }
+
+    .progression { position: fixed; left: 0; bottom: 0; height: 4px; background: var(--accent); transition: width 0.5s ease; }
+    body.sans-progression .progression { display: none; }
+
+    @media (max-width: 800px) {
+        .deux, .deux.large-gauche, .flux { grid-template-columns: 1fr; }
+        .flux .liaison { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; transition: none !important; }
+        .diapo .r { opacity: 1; transform: none; }
+    }
+</style>
+</head>
+<body>
+
+<!-- 1. Titre -->
+<section class="diapo">
+    <div class="titre">
+        <p class="surtitre r">Machine Learning - EFREI Paris</p>
+        <h1 class="r" style="--i: 1">Maintenance prédictive d'une vanne hydraulique</h1>
+        <p class="accroche r" style="--i: 2">Reconnaître l'état de la vanne à partir de deux capteurs seulement, la pression et le débit.</p>
+        <div class="filet"></div>
+        <p class="auteurs r" style="--i: 5">Fode Laye Keita, Seyni Balde et Ascelle Laurence</p>
+    </div>
+</section>
+
+<!-- 2. Contexte -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">1 - Contexte</p>
+        <h2 class="r" style="--i: 1">Détecter l'état de la vanne avant la panne</h2>
+        <div class="deux">
+            <div class="texte r" style="--i: 2">
+                <p><strong>Système :</strong> un banc d'essai hydraulique qui répète des cycles de charge de 60 secondes.</p>
+                <p><strong>But :</strong> prédire l'état de la vanne pour planifier la maintenance au bon moment.</p>
+                <p><strong>Cible binaire :</strong> vanne à 100 % (classe 1) ou dégradée (classe 0).</p>
+                <p><strong>Contrainte :</strong> n'utiliser que les capteurs PS2 et FS1.</p>
+            </div>
+            <figure class="figure r" style="--i: 3">
+                <img src="../figures/repartition_classes_vanne.png" alt="Répartition des classes de la vanne">
+                <figcaption>2 205 cycles, classes équilibrées (environ 51 % / 49 %).</figcaption>
+            </figure>
+        </div>
+    </div>
+</section>
+
+<!-- 3. Données et capteurs -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">1 - Données</p>
+        <h2 class="r" style="--i: 1">Deux signaux bruts par cycle</h2>
+        <div class="grille">
+            <div class="carte r" style="--i: 2"><h3>PS2 - pression</h3><p>Capteur de pression, en bar.</p><span class="chiffre">100 Hz, 6 000 points</span></div>
+            <div class="carte r" style="--i: 3"><h3>FS1 - débit</h3><p>Capteur de débit volumique, en l/min.</p><span class="chiffre">10 Hz, 600 points</span></div>
+            <div class="carte r" style="--i: 4"><h3>2 205 cycles</h3><p>Une ligne par cycle de 60 s dans chaque fichier, étiquette dans <code>profile.txt</code>.</p><span class="chiffre">6 600 valeurs par cycle</span></div>
+            <div class="carte r" style="--i: 5"><h3>Objectif</h3><p>Résumer chaque cycle en quelques variables, puis classer.</p><span class="chiffre">brut → features → modèle</span></div>
+        </div>
+    </div>
+</section>
+
+<!-- 4. Challenge : features -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">2 - Challenges</p>
+        <h2 class="r" style="--i: 1">6 600 valeurs par cycle : comment résumer ?</h2>
+        <div class="deux">
+            <div class="texte r" style="--i: 2">
+                <p>Les deux signaux n'ont ni la même longueur, ni la même fréquence. Les donner tels quels à un modèle serait lourd et peu lisible.</p>
+                <p>Il faut <strong>construire des features</strong> qui gardent l'information utile, puis <strong>en retirer</strong> :</p>
+                <p>- les variables presque constantes (écart-type &lt; 0,001)<br>- les variables très corrélées (|corrélation| &gt; 0,85)</p>
+            </div>
+            <figure class="figure r" style="--i: 3">
+                <img src="../figures/boxplots_features.png" alt="Boxplots des features par classe">
+                <figcaption>Certaines features séparent déjà les deux classes.</figcaption>
+            </figure>
+        </div>
+    </div>
+</section>
+
+<!-- 5. Quatre approches -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">2 - Feature engineering</p>
+        <h2 class="r" style="--i: 1">Quatre approches comparées</h2>
+        <div class="grille">
+            <div class="carte r" style="--i: 2"><h3>Statistiques</h3><p>Min, max, moyenne, écart-type, médiane, quartiles, RMS, skewness, kurtosis.</p><span class="chiffre">22 → 7 features</span></div>
+            <div class="carte r" style="--i: 3"><h3>Spectre</h3><p>FFT : amplitude, fréquence dominante, énergie, centroïde.</p><span class="chiffre">8 → 3 features</span></div>
+            <div class="carte r" style="--i: 4"><h3>Mixte</h3><p>Statistiques et spectre réunis, puis filtrés ensemble.</p><span class="chiffre">30 → 9 features</span></div>
+            <div class="carte meilleure r" style="--i: 5"><h3>Histogramme</h3><p>Part des mesures du cycle dans chacun des 20 intervalles de valeurs, par capteur.</p><span class="chiffre">40 → 14 features</span></div>
+        </div>
+    </div>
+</section>
+
+<!-- 6. Corrélation -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">2 - Sélection des features</p>
+        <h2 class="r" style="--i: 1">Retirer la redondance</h2>
+        <div class="deux">
+            <figure class="figure r" style="--i: 2">
+                <img src="../figures/matrice_correlation_histo.png" alt="Matrice de corrélation avant filtrage">
+                <figcaption>Avant : beaucoup de variables corrélées.</figcaption>
+            </figure>
+            <figure class="figure r" style="--i: 3">
+                <img src="../figures/matrice_correlation_finale_histo.png" alt="Matrice de corrélation après filtrage">
+                <figcaption>Après : 14 variables complémentaires (exemple : histogramme).</figcaption>
+            </figure>
+        </div>
+    </div>
+</section>
+
+<!-- 7. Histogramme -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">2 - Idée clé</p>
+        <h2 class="r" style="--i: 1">L'histogramme du cycle comme signature</h2>
+        <div class="deux">
+            <div class="texte r" style="--i: 2">
+                <p>On ne regarde plus l'ordre des mesures, mais <strong>leur répartition</strong> : quelle part du cycle passe à basse ou à haute pression, à faible ou fort débit.</p>
+                <p>Les intervalles sont <strong>communs</strong> à tous les cycles (min et max globaux), sinon les cycles ne seraient pas comparables.</p>
+                <p>Les cycles d'une vanne dégradée se répartissent autrement : c'est ce que les modèles exploitent.</p>
+            </div>
+            <figure class="figure r" style="--i: 3">
+                <img src="../figures/histogramme_features_histo.png" alt="Histogrammes des features par classe">
+                <figcaption>Répartition des features d'histogramme selon la classe.</figcaption>
+            </figure>
+        </div>
+    </div>
+</section>
+
+<!-- 8. Entraînement -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">3 - Entraînement</p>
+        <h2 class="r" style="--i: 1">Six modèles, un protocole identique</h2>
+        <div class="flux r" style="--i: 2">
+            <div class="carte"><h3>Découpage</h3><p>80 % / 20 %, mélangé et stratifié, <code>random_state=42</code>.</p><span class="chiffre">1 764 / 441</span></div>
+            <div class="liaison"></div>
+            <div class="carte"><h3>Pipeline</h3><p>Normalisation (<code>scaler</code>) puis modèle (<code>clf</code>) : pas de fuite.</p></div>
+            <div class="liaison"></div>
+            <div class="carte"><h3>Réglage</h3><p>Grille + validation croisée à 5 plis sur le train.</p></div>
+            <div class="liaison"></div>
+            <div class="carte meilleure"><h3>Test</h3><p>Le test n'est utilisé qu'une fois, pour rapporter les scores.</p></div>
+        </div>
+        <div class="grille r" style="--i: 3; margin-top: 3vh; grid-template-columns: repeat(3, 1fr)">
+            <div class="carte"><h3>KNN</h3><p>Proche des voisins : sensible à l'échelle, d'où la normalisation.</p></div>
+            <div class="carte"><h3>Arbre de décision</h3><p>Règles lisibles, mais instable.</p></div>
+            <div class="carte"><h3>Régression logistique</h3><p>Frontière linéaire, rapide, référence simple.</p></div>
+            <div class="carte"><h3>Naive Bayes</h3><p>Suppose les variables indépendantes et gaussiennes.</p></div>
+            <div class="carte"><h3>SVM</h3><p>Noyau RBF, frontière non linéaire.</p></div>
+            <div class="carte"><h3>Random Forest</h3><p>Moyenne de nombreux arbres, robuste.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- 9. Critères -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">3 - Évaluation</p>
+        <h2 class="r" style="--i: 1">Comment on juge un modèle</h2>
+        <div class="grille">
+            <div class="carte meilleure r" style="--i: 2"><h3>F1 macro</h3><p>Critère de choix : moyenne du F1 des deux classes, utilisé en validation croisée.</p></div>
+            <div class="carte r" style="--i: 3"><h3>Précision et rappel</h3><p>Fausses alertes d'un côté, pannes manquées de l'autre.</p></div>
+            <div class="carte r" style="--i: 4"><h3>Exactitude équilibrée</h3><p>Moyenne des rappels par classe, utile si les classes diffèrent.</p></div>
+            <div class="carte r" style="--i: 5"><h3>Matrice de confusion</h3><p>Compte les erreurs de chaque type sur les 441 cycles de test.</p></div>
+            <div class="carte r" style="--i: 6"><h3>ROC et AUC</h3><p>Qualité du classement, indépendante du seuil de décision.</p></div>
+            <div class="carte r" style="--i: 7"><h3><code>class_weight</code></h3><p>Pondération <code>balanced</code> pour ne pas favoriser une classe.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- 10. Hyperparamétrage -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">4 - Hyperparamétrage</p>
+        <h2 class="r" style="--i: 1">Une grille par modèle, validée par croisement</h2>
+        <table class="r" style="--i: 2">
+            <tr><th>Modèle</th><th>Paramètres explorés</th></tr>
+            <tr><td class="nom">KNN</td><td>voisins 3 à 15, pondération, distance (L1 / L2)</td></tr>
+            <tr><td class="nom">Arbre</td><td>profondeur max, feuille minimale, critère</td></tr>
+            <tr><td class="nom">Rég. logistique</td><td>régularisation C de 0,01 à 100</td></tr>
+            <tr><td class="nom">Naive Bayes</td><td>lissage de variance, de 1e-11 à 1e-5</td></tr>
+            <tr><td class="nom">SVM</td><td>C (0,1 à 100), gamma, noyau RBF</td></tr>
+            <tr><td class="nom">Random Forest</td><td>100 ou 300 arbres, profondeur, feuille minimale, variables par arbre</td></tr>
+        </table>
+        <p class="note r" style="--i: 3">GridSearchCV, 5 plis stratifiés, score F1 macro. Le meilleur modèle est choisi sur la validation croisée, jamais sur le test.</p>
+    </div>
+</section>
+
+<!-- 11. Performances par approche -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">5 - Performances</p>
+        <h2 class="r" style="--i: 1">F1 macro sur le test, par modèle et par approche</h2>
+        <div id="graphique" class="r" style="--i: 2"></div>
+    </div>
+</section>
+
+<!-- 12. Meilleur modèle -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">5 - Meilleur résultat</p>
+        <h2 class="r" style="--i: 1">Histogramme + Random Forest</h2>
+        <div class="deux large-gauche">
+            <figure class="figure large r" style="--i: 2">
+                <img src="../figures/courbes_roc_histogramme.png" alt="Courbes ROC, approche histogramme" style="max-height: 38vh">
+                <figcaption>Courbes ROC (histogramme).</figcaption>
+            </figure>
+            <div class="grille r" style="--i: 3; grid-template-columns: 1fr">
+                <div class="carte"><span class="grand-chiffre" style="font-size: clamp(2rem, 4vw, 3.2rem)">1 erreur</span><p>sur 441 cycles de test</p></div>
+                <div class="carte"><span class="grand-chiffre" style="font-size: clamp(2rem, 4vw, 3.2rem)">F1 0,998</span><p>AUC 0,9999</p></div>
+            </div>
+        </div>
+        <figure class="figure r" style="--i: 4; margin-top: 2vh">
+            <img src="../figures/matrices_confusion_histogramme.png" alt="Matrices de confusion, approche histogramme" style="max-height: 24vh; width: 100%; object-fit: contain">
+            <figcaption>Matrices de confusion des six modèles (histogramme) : KNN, arbre, régression logistique, Naive Bayes, SVM, Random Forest.</figcaption>
+        </figure>
+    </div>
+</section>
+
+<!-- 13. Autres approches -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">5 - Comparaison</p>
+        <h2 class="r" style="--i: 1">Les autres approches en un coup d'œil</h2>
+        <div class="deux">
+            <figure class="figure r" style="--i: 2">
+                <img src="../figures/courbes_roc_stats_spectre.png" alt="Courbes ROC, approche mixte">
+                <figcaption>Mixte : SVM 0,989 de F1, AUC 0,9994.</figcaption>
+            </figure>
+            <figure class="figure r" style="--i: 3">
+                <img src="../figures/courbes_roc_stats.png" alt="Courbes ROC, approche statistiques">
+                <figcaption>Statistiques : Random Forest 0,977 de F1, AUC 0,9993.</figcaption>
+            </figure>
+        </div>
+    </div>
+</section>
+
+<!-- 14. Pipeline et GUI -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">Livrables</p>
+        <h2 class="r" style="--i: 1">Du cycle brut à la prédiction</h2>
+        <div class="grille">
+            <div class="carte r" style="--i: 2"><h3><code>pipeline(ps2, fs1)</code></h3><p>Reprend le traitement des notebooks (NaN remplacés par la moyenne du cycle, mêmes intervalles d'histogramme) et renvoie 1 ou 0.</p></div>
+            <div class="carte r" style="--i: 3"><h3>Interface Streamlit</h3><p>Chargement d'un tableau PS2 et d'un tableau FS1, choix du modèle dans une liste, bouton « Prédire ».</p></div>
+            <div class="carte r" style="--i: 4"><h3>Tests unitaires</h3><p>Sauvegarde des modèles, découpage, histogramme, et reproduction exacte des features d'entraînement.</p></div>
+            <div class="carte r" style="--i: 5"><h3>Projet installable</h3><p><code>pip install -e .</code>, modèles enregistrés dans <code>models/</code> par jeu de features.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- 15. Challenges et améliorations -->
+<section class="diapo">
+    <div class="contenu">
+        <p class="surtitre r">5 - Bilan</p>
+        <h2 class="r" style="--i: 1">Limites et pistes d'amélioration</h2>
+        <div class="deux">
+            <div>
+                <p class="surtitre r" style="--i: 2; margin-bottom: 1.5vh">Challenges rencontrés</p>
+                <div class="grille" style="grid-template-columns: 1fr">
+                    <div class="carte risque r" style="--i: 3"><h3>Signaux hétérogènes</h3><p>6 000 et 600 points : il a fallu choisir un résumé par cycle.</p></div>
+                    <div class="carte risque r" style="--i: 4"><h3>Redondance</h3><p>Beaucoup de variables corrélées, filtrées à 0,85.</p></div>
+                    <div class="carte risque r" style="--i: 5"><h3>Découpage mélangé</h3><p>Des cycles voisins se ressemblent : les scores absolus peuvent être un peu optimistes.</p></div>
+                </div>
+            </div>
+            <div>
+                <p class="surtitre r" style="--i: 2; margin-bottom: 1.5vh">Pistes d'amélioration</p>
+                <div class="grille" style="grid-template-columns: 1fr">
+                    <div class="carte r" style="--i: 3"><h3>Validation plus stricte</h3><p>Découpage par blocs de cycles, ou jeu de validation séparé du test.</p></div>
+                    <div class="carte r" style="--i: 4"><h3>Features croisées</h3><p>Rapport PS2 / FS1, corrélation et inter-corrélation des deux signaux.</p></div>
+                    <div class="carte r" style="--i: 5"><h3>Importance des variables</h3><p>Savoir quels intervalles et quel capteur comptent le plus.</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 16. Fin -->
+<section class="diapo">
+    <div class="fin">
+        <p class="surtitre r">Maintenance prédictive</p>
+        <h2 class="r" style="--i: 1">Merci</h2>
+        <div class="filet"></div>
+        <p class="auteurs r" style="--i: 4">Fode Laye Keita, Seyni Balde et Ascelle Laurence</p>
+    </div>
+</section>
+
+<div class="progression"></div>
+
+<script>
+    // Navigation : flèches, espace ou clic ; F pour le plein écran ; H masque la barre de progression.
+    const diapos = [...document.querySelectorAll(".diapo")];
+    const progression = document.querySelector(".progression");
+    let courante = 0;
+    let minuteurCurseur;
+
+    function afficher(index) {
+        courante = Math.max(0, Math.min(diapos.length - 1, index));
+        diapos.forEach((diapo, i) => diapo.classList.toggle("active", i === courante));
+        progression.style.width = ((courante + 1) / diapos.length * 100) + "%";
+        history.replaceState(null, "", "#" + (courante + 1));
+    }
+
+    document.addEventListener("keydown", evenement => {
+        if (["ArrowRight", "ArrowDown", " ", "PageDown"].includes(evenement.key)) {
+            evenement.preventDefault();
+            afficher(courante + 1);
+        } else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(evenement.key)) {
+            afficher(courante - 1);
+        } else if (evenement.key === "f") {
+            document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+        } else if (evenement.key === "h") {
+            document.body.classList.toggle("sans-progression");
+        }
+    });
+
+    document.addEventListener("click", () => afficher(courante + 1));
+
+    document.addEventListener("mousemove", () => {
+        document.body.classList.remove("inactif");
+        clearTimeout(minuteurCurseur);
+        minuteurCurseur = setTimeout(() => document.body.classList.add("inactif"), 2000);
+    });
+
+    // Tableau des performances : plus la case est verte, meilleur est le score.
+    document.querySelectorAll("#tableau td[data-v]").forEach(cellule => {
+        const part = Math.max(0, (parseFloat(cellule.dataset.v) - 0.45) / 0.55) * 80;
+        cellule.style.background = "color-mix(in srgb, var(--accent) " + part + "%, var(--papier-clair))";
+        if (part > 60) cellule.style.color = "#fff";
+    });
+
+
+    // Diagramme des performances : barres groupées par modèle, axe vertical de 50 % à 100 %.
+    (function () {
+        const approches = [
+            { nom: "Statistiques", couleur: "#9b8f78" },
+            { nom: "Spectre", couleur: "#c9923d" },
+            { nom: "Mixte", couleur: "#4a7fa7" },
+            { nom: "Histogramme", couleur: "#165e4f" }
+        ];
+        const modeles = [
+            ["KNN", [96.1, 95.5, 98.6, 93.7]],
+            ["Arbre", [96.8, 97.1, 96.2, 99.6]],
+            ["Rég. logistique", [70.3, 82.3, 94.3, 98.9]],
+            ["Naive Bayes", [47.9, 78.1, 74.0, 89.3]],
+            ["SVM", [96.6, 96.8, 98.9, 99.1]],
+            ["Random Forest", [97.7, 97.7, 97.7, 99.8]]
+        ];
+        const L = 70, R = 1180, H = 420, B = 470, MIN = 50, MAX = 100;
+        const y = v => B - (Math.max(v, MIN) - MIN) / (MAX - MIN) * H;
+        const groupe = (R - L) / modeles.length, largeur = 34, ecart = 5;
+        let svg = '<svg viewBox="0 0 1200 540" style="width:100%;height:auto" role="img" aria-label="F1 macro par modèle et par approche">';
+        approches.forEach((a, i) => {
+            svg += '<rect x="' + (L + i * 200) + '" y="8" width="18" height="18" rx="4" fill="' + a.couleur + '"/>' +
+                   '<text x="' + (L + i * 200 + 26) + '" y="23" font-size="18" fill="#1f1d1a">' + a.nom + '</text>';
+        });
+        for (let v = MIN; v <= MAX; v += 10) {
+            svg += '<line x1="' + L + '" x2="' + R + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="#ddd6c8" stroke-width="1.5"/>' +
+                   '<text x="' + (L - 10) + '" y="' + (y(v) + 6) + '" text-anchor="end" font-size="16" fill="#635d54">' + v + ' %</text>';
+        }
+        modeles.forEach(([nom, valeurs], g) => {
+            const x0 = L + g * groupe + (groupe - (4 * largeur + 3 * ecart)) / 2;
+            const meilleur = valeurs.indexOf(Math.max(...valeurs));
+            valeurs.forEach((v, i) => {
+                const x = x0 + i * (largeur + ecart);
+                svg += '<rect x="' + x + '" y="' + y(v) + '" width="' + largeur + '" height="' + (B - y(v)) + '" rx="3" fill="' + approches[i].couleur + '"/>';
+                if (i === meilleur) {
+                    svg += '<text x="' + (x + largeur / 2) + '" y="' + (y(v) - 8) + '" text-anchor="middle" font-size="16" font-weight="700" fill="#1f1d1a">' + v.toFixed(1).replace('.', ',') + '</text>';
+                }
+                if (v < MIN) {
+                    svg += '<text x="' + (x + largeur / 2) + '" y="' + (B - 8) + '" text-anchor="middle" font-size="15" font-weight="700" fill="#b4532a">' + Math.round(v) + ' (sous 50)</text>';
+                }
+            });
+            svg += '<text x="' + (L + g * groupe + groupe / 2) + '" y="' + (B + 34) + '" text-anchor="middle" font-size="19" font-family="Georgia, serif" font-weight="600" fill="#1f1d1a">' + nom + '</text>';
+        });
+        svg += '<line x1="' + L + '" x2="' + R + '" y1="' + B + '" y2="' + B + '" stroke="#1f1d1a" stroke-width="2"/></svg>';
+        document.getElementById("graphique").innerHTML = svg;
+    })();
+
+    afficher((parseInt(location.hash.slice(1), 10) || 1) - 1);
+</script>
+</body>
+</html>
