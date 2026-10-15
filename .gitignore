@@ -8,3 +8,4 @@ models/*.pkl
 .DS_Store
 .claude
 *.egg-info/
+~$*

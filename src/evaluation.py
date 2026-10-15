@@ -3,7 +3,7 @@ from sklearn.metrics import (ConfusionMatrixDisplay, RocCurveDisplay, accuracy_s
                              balanced_accuracy_score, f1_score, precision_score,
                              recall_score, roc_auc_score)
 
-from src.utils import save_figure
+from src.plots import finish
 
 
 def get_scores(model, x):
@@ -25,24 +25,22 @@ def test_scores(model, x_test, y_test) -> dict:
     }
 
 
-def plot_confusion_matrices(models: dict, x_test, y_test, save_as=None):
-    """Une matrice de confusion par modèle, côte à côte."""
+def plot_confusion_matrices(models: dict, x_test, y_test, save_as=None, show: bool = True):
+    """Une matrice de confusion par modèle, côte à côte.
+    show=False : renvoie la figure au lieu de l'afficher."""
     fig, axes = plt.subplots(1, len(models), figsize=(4 * len(models), 4), squeeze=False)
     for ax, (name, model) in zip(axes[0], models.items()):
         ConfusionMatrixDisplay.from_estimator(model, x_test, y_test, ax=ax, colorbar=False)
         ax.set_title(name)
-    if save_as:
-        save_figure(save_as)
-    plt.show()
+    return finish(save_as, show)
 
 
-def plot_roc_curves(models: dict, x_test, y_test, save_as=None):
-    """Courbes ROC de tous les modèles sur un même graphique (AUC dans la légende)."""
+def plot_roc_curves(models: dict, x_test, y_test, save_as=None, show: bool = True):
+    """Courbes ROC de tous les modèles sur un même graphique (AUC dans la légende).
+    show=False : renvoie la figure au lieu de l'afficher."""
     ax = plt.subplots(figsize=(6, 5))[1]
     for name, model in models.items():
         RocCurveDisplay.from_predictions(y_test, get_scores(model, x_test), name=name, ax=ax)
     ax.plot([0, 1], [0, 1], "k--", label="hasard")
     ax.legend()
-    if save_as:
-        save_figure(save_as)
-    plt.show()
+    return finish(save_as, show)
